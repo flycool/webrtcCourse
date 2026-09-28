@@ -1,0 +1,13 @@
+1. Someone must getUserMedia() - client1/init/caller/offer
+2. client1 create RTCPeerConnection
+3. peerConnection needs STUN servers
+    - we will need ICE candidates later
+4. add local stream tracks to peerConnection
+    - we need to associate client1 feed with peerConnection
+5. client1 creates an offer
+    - needed peerConnection with tracks
+    - offer = RTCSessionDescription
+        1. SDP - codec/resolution information etc
+        2. Type (offer)
+6. client1 hands offer to pc.setLocalDescription
+    - then peerConnection icecandidate event callback, and Ice candidate found
