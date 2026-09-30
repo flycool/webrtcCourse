@@ -1,4 +1,12 @@
-const socket = io.connect('https://localhost:5050');
+const userName = "Max-" + Math.floor(Math.random() * 100000);
+const password = 'x';
+document.querySelector('#user-name').innerHTML = userName;
+
+const socket = io.connect('https://localhost:5050', {
+    auth: {
+        userName, password
+    }
+});
 
 const localVideoEl = document.querySelector('#local-video');
 const remoteVideoEl = document.querySelector('#remote-video');
@@ -6,6 +14,7 @@ const remoteVideoEl = document.querySelector('#remote-video');
 let localStream;
 let remoteStream;
 let peerConnection;
+let didIOffer = false;
 
 let peerConfiguration = {
     iceServers: [
@@ -20,13 +29,7 @@ let peerConfiguration = {
 
 
 const call = async () => {
-    let stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-    });
-    localVideoEl.srcObject = stream;
-    localStream = stream;
-
+    await fetchUserMedia();
     await createPeerConnection();
 
     try {
@@ -34,22 +37,69 @@ const call = async () => {
         const offer = await peerConnection.createOffer();
         console.log("offer", offer);
         peerConnection.setLocalDescription(offer);
+        didIOffer = true;
+        socket.emit('newOffer', offer); // send off to signal server
+
     } catch (error) {
         console.error("Error occurred:", error);
     }
 }
 
-const createPeerConnection = () => {
+const answerOffer = async (offerObj) => {
+    // console.log("answerOffer===", offerObj);
+    await fetchUserMedia();
+    await createPeerConnection(offerObj);
+    const answer = await peerConnection.createAnswer();
+    console.log("answer===", answer)
+    peerConnection.setLocalDescription(answer);
+}
+
+const fetchUserMedia = () => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+            localVideoEl.srcObject = stream;
+            localStream = stream;
+            resolve();
+        } catch (error) {
+            console.log(error);
+            reject();
+        }
+    })
+}
+
+const createPeerConnection = (offerObj) => {
     return new Promise(async (resolve, reject) => {
         peerConnection = await new RTCPeerConnection(peerConfiguration);
+
+
+        peerConnection.addEventListener('signalingstatechange', (event) => {
+            console.log(event);
+            console.log(peerConnection.signalingState);
+        })
+
         peerConnection.addEventListener('icecandidate', e => {
             console.log("Ice candidate found....");
             console.log("icecandidate", e);
+            if (e.candidate) {
+                socket.emit('iceCandidate', {
+                    iceCandidate: e.candidate,
+                    iceUserName: userName,
+                    didIOffer,
+                });
+            }
         });
 
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
+
+        if (offerObj) {
+            peerConnection.setRemoteDescription(offerObj.offer);
+        }
 
         resolve();
     })
