@@ -52,6 +52,21 @@ const answerOffer = async (offerObj) => {
     const answer = await peerConnection.createAnswer();
     console.log("answer===", answer)
     peerConnection.setLocalDescription(answer);
+
+    // emit the answer to the signaling server
+    offerObj.answer = answer;
+    const offerIceCandidates = await socket.emitWithAck('newAnswer', offerObj);
+    console.log("offerIceCandidates===", offerIceCandidates);
+
+    offerIceCandidates.forEach(c => {
+        peerConnection.addIceCandidate(c);
+        console.log("==========added ice candidate=======");
+    });
+
+}
+
+const addAnswer = async (offerObj) => {
+    peerConnection.setRemoteDescription(offerObj.answer);
 }
 
 const fetchUserMedia = () => {
@@ -59,13 +74,13 @@ const fetchUserMedia = () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: true,
-                audio: true
+                audio: false
             });
             localVideoEl.srcObject = stream;
             localStream = stream;
             resolve();
         } catch (error) {
-            console.log(error);
+            console.log("fetchUserMedia", error);
             reject();
         }
     })
@@ -75,6 +90,12 @@ const createPeerConnection = (offerObj) => {
     return new Promise(async (resolve, reject) => {
         peerConnection = await new RTCPeerConnection(peerConfiguration);
 
+        remoteStream = new MediaStream();
+        remoteVideoEl.srcObject = remoteStream;
+
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
 
         peerConnection.addEventListener('signalingstatechange', (event) => {
             console.log(event);
@@ -93,8 +114,11 @@ const createPeerConnection = (offerObj) => {
             }
         });
 
-        localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
+        peerConnection.addEventListener('track', e => {
+            console.log("peerConnection track===", e)
+            e.streams[0].getTracks().forEach(track => {
+                remoteStream.addTrack(track, remoteStream);
+            })
         });
 
         if (offerObj) {
@@ -105,7 +129,10 @@ const createPeerConnection = (offerObj) => {
     })
 }
 
-
+const addNewIceCandidate = (iceCandidate) => {
+    peerConnection.addIceCandidate(iceCandidate);
+    console.log("==addNewIceCandidate========added ice candidate=======");
+}
 
 
 document.querySelector('#call').addEventListener('click', call);
