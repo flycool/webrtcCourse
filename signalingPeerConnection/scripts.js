@@ -2,7 +2,7 @@ const userName = "Max-" + Math.floor(Math.random() * 100000);
 const password = 'x';
 document.querySelector('#user-name').innerHTML = userName;
 
-const socket = io.connect('https://localhost:5050', {
+const socket = io.connect('https://192.168.1.10:5050', {
     auth: {
         userName, password
     }
@@ -38,7 +38,7 @@ const call = async () => {
         console.log("offer", offer);
         peerConnection.setLocalDescription(offer);
         didIOffer = true;
-        socket.emit('newOffer', offer); // send off to signal server
+        socket.emit('newOffer', offer); // send offer to signal server
 
     } catch (error) {
         console.error("Error occurred:", error);
@@ -102,6 +102,7 @@ const createPeerConnection = (offerObj) => {
             console.log(peerConnection.signalingState);
         })
 
+        // trigger when peerConnection.setLocalDescription(offer)
         peerConnection.addEventListener('icecandidate', e => {
             console.log("Ice candidate found....");
             console.log("icecandidate", e);
@@ -114,6 +115,7 @@ const createPeerConnection = (offerObj) => {
             }
         });
 
+        // get a track event from the remote peer connection and add it to the remote stream
         peerConnection.addEventListener('track', e => {
             console.log("peerConnection track===", e)
             e.streams[0].getTracks().forEach(track => {
